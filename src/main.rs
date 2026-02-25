@@ -11,22 +11,26 @@ fn load_audio(path: &str) -> Option<(Vec<f32>, u32)> {
 
     let mut reader = WavReader::open(path).ok()?;
     let sr = reader.spec().sample_rate;
+    
+    fn average_channel_samples(samples: Vec<f32>, channels: usize) -> Vec<f32> {
+        samples.chunks_exact(channels).map(|c| c.iter().sum::<f32>() / channels as f32).collect()
+    }
 
     let audio: Vec<f32> = match reader.spec().sample_format {
         SampleFormat::Int => {
             let max_val = 2f32.powi(reader.spec().bits_per_sample as i32 - 1);
             let raw: Vec<f32> = reader.samples::<i32>().map(|s| s.unwrap_or(0) as f32 / max_val).collect();
-            if reader.spec().channels > 1 {
-                let ch = reader.spec().channels as usize;
-                raw.chunks_exact(ch).map(|c| c.iter().sum::<f32>() / ch as f32).collect()
-            } else { raw }
+            let averaged_raw = if reader.spec().channels > 1 {
+                average_channel_samples(raw, reader.spec().channels as usize)
+            } else { raw };
+            averaged_raw
         }
         SampleFormat::Float => {
             let raw: Vec<f32> = reader.samples::<f32>().map(|s| s.unwrap_or(0.0)).collect();
-            if reader.spec().channels > 1 {
-                let ch = reader.spec().channels as usize;
-                raw.chunks_exact(ch).map(|c| c.iter().sum::<f32>() / ch as f32).collect()
-            } else { raw }
+            let averaged_raw = if reader.spec().channels > 1 {
+                average_channel_samples(raw, reader.spec().channels as usize)
+            } else { raw };
+            averaged_raw
         }
     };
     Some((audio, sr))
